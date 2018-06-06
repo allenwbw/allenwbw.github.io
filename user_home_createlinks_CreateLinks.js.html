@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>JSDoc: Source: user/home/createlinks/CreateLinks.js</title>
+
+    <script src="scripts/prettify/prettify.js"> </script>
+    <script src="scripts/prettify/lang-css.js"> </script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify-tomorrow.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc-default.css">
+</head>
+
+<body>
+
+<div id="main">
+
+    <h1 class="page-title">Source: user/home/createlinks/CreateLinks.js</h1>
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>import React, { Component } from 'react';
+import { Table, Form, Input, Icon, Button, Card, Col, Row, Popover } from 'antd';
+import {CopyToClipboard} from 'react-copy-to-clipboard';
+import {
+    withRouter
+} from 'react-router-dom';
+import {Layout, notification} from "antd/lib/index";
+import {createLink, getAllLinks} from "../../../util/APIUtils";
+import './CreateLinks.css'
+const FormItem = Form.Item;
+const { Content } = Layout;
+
+/** Component class that renders the createlinks page */
+class CreateLinks extends Component {
+    /** Constructor that sets initial component state at mount time */
+    constructor(props){
+        super(props);
+        this.handleCreate = this.handleCreate.bind(this);
+        notification.config({
+            placement: 'topRight',
+            top: 70,
+            duration: 3,
+        });
+        this.createdLinks = [];
+        this.linkTable = [];
+        this.reloadedLinks = [];
+        this.last = true;
+        this.page = 0;
+    }
+    /**
+     * function that try to load user's SYL links from backend
+     * and store in localStorage
+     * @param {number} page - page number of pagination response from backend server
+     * @param {number} size - number of links for each pagination response
+     * */
+    loadLinks(page = 0, size = 30){
+        let promise;
+        promise = getAllLinks(page,size);
+        if (!promise) {
+            return;
+        }
+
+        this.setState({isLoading: true});
+        promise
+            .then(response => {
+                this.reloadedLinks = this.reloadedLinks.concat(response.content);
+                this.page = response.page;
+                this.last = response.last;
+                if (response.last) {
+                    localStorage.setItem('mylinks', JSON.stringify(this.reloadedLinks));
+                    localStorage.setItem('totalPages',response.totalPages.toString());
+                    localStorage.setItem('totalElements', response.totalElements.toString());
+                }
+            }).catch(error => {
+            this.last = true;
+        });
+        if (!this.last) {
+            this.loadLinks(this.page + 1);
+        }
+    }
+
+    /** Callback function that gets called after user clicks on the copy to clipboard button */
+    onCopy() {
+        notification.success({
+            message: 'SYL App',
+            description: "Copied link to clipboard!",
+        });
+    }
+
+    /** Callback function that gets called after creating SYL links. The function stores the created
+     * links to component state and re-renders component
+     * */
+    handleCreate(links){
+        notification.success({
+            message: 'SYL App',
+            description: "Link creation succeeded.",
+        });
+        this.createdLinks = links;
+        let dataSource = this.createdLinks;
+        let columns = [{
+            title: 'Cents per click',
+            dataIndex: 'ecpc',
+            key: 'earnings',
+            width: '50%'
+        },{
+            title: 'SYL link',
+            key: 'link',
+            width: '50%',
+            render: (record) =>
+                &lt;Popover content={
+                    &lt;CopyToClipboard
+                        onCopy={this.onCopy}
+                        text={record.link}>
+                        &lt;Button type={'primary'}>Copy to Clipboard&lt;/Button>
+                    &lt;/CopyToClipboard>}
+                         title={"Press the button to copy your SYL link"}
+                         trigger={'click'}>
+                    &lt;a>{record.link}&lt;/a>
+                &lt;/Popover>
+        }];
+        this.linkTable = [
+            &lt;Row gutter={16}>
+                &lt;Col span={24}>
+                    &lt;Card title="Your links">
+                        &lt;Table dataSource={dataSource} columns={columns} />
+                    &lt;/Card>
+                &lt;/Col>
+            &lt;/Row>
+        ];
+        this.loadLinks();
+        this.props.history.push("/home/createlinks");
+
+    }
+    render() {
+        const AntWrappedLinkForm = Form.create()(LinkForm);
+        return (
+            &lt;Layout className="createlinks-layout" style={{ padding: '0 0px 0px', background: '#ECECEC' }}>
+                &lt;Content className="createlinks-content" >
+                    &lt;div className="content-container" style={{ background: '#ECECEC', padding: '0' }}>
+                        &lt;Row gutter={16}>
+                            &lt;Col span={24}>
+                                &lt;Card title="Create links">
+                                    &lt;AntWrappedLinkForm onCreate={this.handleCreate} />
+                                &lt;/Card>
+                            &lt;/Col>
+                        &lt;/Row>
+                        {this.linkTable}
+                    &lt;/div>
+                &lt;/Content>
+            &lt;/Layout>
+        );
+    }
+}
+
+
+
+
+
+
+
+let uuid = 0;
+/** Component class that renders the form component that takes user input urls to be converted to SYL links */
+class LinkForm extends Component {
+    constructor(props){
+        super(props);
+        this.handleSubmit = this.handleSubmit.bind(this);
+    }
+
+    /** Callback function that gets called when user clicks on the remove button.
+     * Removes the corresponding field of the form
+     * @param {number} k - key of form field
+     * */
+    remove = (k) => {
+        const { form } = this.props;
+        // can use data-binding to get
+        const keys = form.getFieldValue('keys');
+        // We need at least one link
+        if (keys.length === 1) {
+            return;
+        }
+
+        // can use data-binding to set
+        form.setFieldsValue({
+            keys: keys.filter(key => key !== k),
+        });
+    }
+
+    /** Function to remove all input fields */
+    removeAll = () => {
+        const { form } = this.props;
+        const keys = form.getFieldValue('keys');
+        const names = form.getFieldValue('names');
+        console.log(keys);
+        console.log(names);
+        form.resetFields();
+        form.setFieldsValue({names: names.splice(0,names.length)});
+        const keys1 = form.getFieldValue('keys');
+        const names1 = form.getFieldValue('names');
+        console.log(keys1);
+        console.log(names1);
+    }
+
+
+    /** Function to add field to form */
+    add = () => {
+        const { form } = this.props;
+        // can use data-binding to get
+        const keys = form.getFieldValue('keys');
+        const nextKeys = keys.concat(uuid);
+        uuid++;
+        // can use data-binding to set
+        // important! notify form to detect changes
+        form.setFieldsValue({
+            keys: nextKeys,
+        });
+    }
+
+    /** Callback function that gets called when user submit form. Contect backend server to convert input urls to
+     * SYL links.
+     * */
+    handleSubmit(event) {
+        event.preventDefault();
+        this.props.form.validateFields((err, values) => {
+            if (!values.names){return;}
+            if (!err) {
+                let createFormRequest = {urls:values.names.filter(name => name !== null)};
+                createLink(createFormRequest).then(response => {
+                       this.props.onCreate(response.generatedLinks);
+                    }).catch(error => {
+                    notification.error({
+                        message: 'SYL',
+                        description: 'Failed to create links!'
+                    })
+
+                });
+                this.removeAll();
+            }
+        });
+    }
+
+    // handleSubmit = (e) => {
+    //     e.preventDefault();
+    //     this.props.form.validateFields((err, values) => {
+    //         if (!err) {
+    //             console.log('Received values of form: ', values);
+    //         }
+    //     });
+    // }
+
+    render() {
+        const { getFieldDecorator, getFieldValue } = this.props.form;
+        const formItemLayout = {
+            labelCol: {
+                xs: { span: 24 },
+                sm: { span: 4 },
+            },
+            wrapperCol: {
+                xs: { span: 24 },
+                sm: { span: 20 },
+            },
+        };
+        const formItemLayoutWithOutLabel = {
+            wrapperCol: {
+                xs: { span: 24, offset: 0 },
+                sm: { span: 20, offset: 4 },
+            },
+        };
+        getFieldDecorator('keys', { initialValue: [] });
+        const keys = getFieldValue('keys');
+        const formItems = keys.map((k, index) => {
+            return (
+                &lt;FormItem
+                    {...(index === 0 ? formItemLayout : formItemLayoutWithOutLabel)}
+                    label={index === 0 ? 'URLs' : ''}
+                    required={false}
+                    key={k}
+                >
+                    {getFieldDecorator(`names[${k}]`, {
+                        validateTrigger: ['onChange', 'onBlur'],
+                        rules: [{
+                            required: true,
+                            whitespace: true,
+                            message: "Please input url or delete this field.",
+                        }],
+                    })(
+                        &lt;Input placeholder="Url" style={{ width: '60%', marginRight: 8 }} />
+                    )}
+                    {keys.length > 1 ? (
+                        &lt;Icon
+                            className="dynamic-delete-button"
+                            type="minus-circle-o"
+                            disabled={keys.length === 1}
+                            onClick={() => this.remove(k)}
+                        />
+                    ) : null}
+                &lt;/FormItem>
+            );
+        });
+        return (
+            &lt;Form onSubmit={this.handleSubmit}>
+                {formItems}
+                &lt;FormItem {...formItemLayoutWithOutLabel}>
+                    &lt;Button type="dashed" onClick={this.add} style={{ width: '60%' }}>
+                        &lt;Icon type="plus" /> Add field
+                    &lt;/Button>
+                &lt;/FormItem>
+                &lt;FormItem {...formItemLayoutWithOutLabel}>
+                    &lt;Button type="primary" htmlType="submit">Submit&lt;/Button>
+                &lt;/FormItem>
+            &lt;/Form>
+        );
+    }
+
+}
+
+export default withRouter(CreateLinks);</code></pre>
+        </article>
+    </section>
+
+
+
+
+</div>
+
+<nav>
+    <h2><a href="index.html">Home</a></h2><h3>Classes</h3><ul><li><a href="App.html">App</a></li><li><a href="AppHeader.html">AppHeader</a></li><li><a href="AppSider.html">AppSider</a></li><li><a href="CreateLinks.html">CreateLinks</a></li><li><a href="Dashboard.html">Dashboard</a></li><li><a href="Home.html">Home</a></li><li><a href="LinkForm.html">LinkForm</a></li><li><a href="LinksTable.html">LinksTable</a></li><li><a href="Login.html">Login</a></li><li><a href="LoginForm.html">LoginForm</a></li><li><a href="Mylinks.html">Mylinks</a></li><li><a href="Stats.html">Stats</a></li></ul><h3>Global</h3><ul><li><a href="global.html#ProfileDropdownMenu">ProfileDropdownMenu</a></li><li><a href="global.html#request">request</a></li></ul>
+</nav>
+
+<br class="clear">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 3.5.5</a> on Mon Jun 04 2018 18:49:42 GMT-0700 (PDT)
+</footer>
+
+<script> prettyPrint(); </script>
+<script src="scripts/linenumber.js"> </script>
+</body>
+</html>

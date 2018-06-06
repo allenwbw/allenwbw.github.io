@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>JSDoc: Source: user/home/dashboard/Dashboard.js</title>
+
+    <script src="scripts/prettify/prettify.js"> </script>
+    <script src="scripts/prettify/lang-css.js"> </script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify-tomorrow.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc-default.css">
+</head>
+
+<body>
+
+<div id="main">
+
+    <h1 class="page-title">Source: user/home/dashboard/Dashboard.js</h1>
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>import React, { Component } from 'react';
+import { Layout, Table, Card, Col, Row, Popover, Button } from 'antd';
+import {CopyToClipboard} from 'react-copy-to-clipboard';
+import {
+    withRouter
+} from 'react-router-dom';
+import { getAllLinks } from "../../../util/APIUtils";
+import LoadingIndicator from "../../../common/LoadingIndicator";
+import './Dashboard.css'
+import {notification} from "antd/lib/index";
+const { Content } = Layout;
+
+/** Component class that renders the dashboard page */
+class Dashboard extends Component {
+    constructor(props) {
+        super(props);
+        this.state = {
+            links: [],
+            page: 0,
+            size: 5,
+            totalElements: 0,
+            totalPages: 0,
+            last: true,
+            isLoading: false
+        };
+        notification.config({
+            placement: 'topRight',
+            top: 70,
+            duration: 3,
+        });
+        this.loadLinks = this.loadLinks.bind(this);
+    }
+
+    componentWillMount() {
+        this.loadLinks(0,30,false);
+    }
+
+    /**
+     * Callback function that gets called at component mount time. Try to load user's SYL links from backend if
+     * they are not already loaded in browser storage, and retrieve links to store in this.state.links
+     * @param {number} page - page number of pagination response from backend server
+     * @param {number} size - number of links for each pagination response
+     * @param {bool} update - if true, load links from server, else load links from browser storage
+     * */
+    loadLinks(page = 0, size = 30, update = true){
+        let promise;
+        if ('mylinks' in localStorage &amp;&amp; !update) {
+            let mylinks = JSON.parse(localStorage.getItem('mylinks'));
+            console.log(localStorage.getItem('mylinks'));
+            this.setState({
+                links: mylinks,
+                totalElements: parseInt(localStorage.getItem('totalElements'),10),
+                totalPages: parseInt(localStorage.getItem('totalPages'),10)
+
+            });
+            return;
+        }else {
+            this.setState({
+                links: [],
+                totalElements: 0,
+                totalPages: 0,
+                last: true
+            });
+        }
+        promise = getAllLinks(page,size);
+        if (!promise) {
+            return;
+        }
+
+        this.setState({isLoading: true});
+        promise
+            .then(response => {
+                this.setState({
+                    links: this.state.links.concat(response.content),
+                    page: response.page,
+                    size: response.size,
+                    totalElements: response.totalElements,
+                    totalPages: response.totalPages,
+                    last: response.last,
+                });
+                if (this.state.last) {
+                    localStorage.setItem('mylinks', JSON.stringify(this.state.links));
+                    localStorage.setItem('totalPages',this.state.totalPages.toString());
+                    localStorage.setItem('totalElements', this.state.totalElements.toString());
+                }
+            }).catch(error => {
+                this.setState({
+                    isLoading: false,
+                    last: true
+                })
+        });
+        if (!this.state.last) {
+            this.loadLinks(this.state.page + 1);
+        } else {
+            this.setState({
+                isLoading: false
+            });
+        }
+        console.log(this.state.links);
+    }
+
+    /** Callback function that gets called after user clicks on the copy to clipboard button */
+    onCopy() {
+        notification.success({
+            message: 'SYL App',
+            description: "Copied link to clipboard!",
+        });
+    }
+
+    render() {
+        let totalEarning = 0, totalClicks = 0;
+        this.state.links.forEach(function (elem) {
+           totalEarning += elem.earnings;
+           totalClicks += elem.redirects;
+        });
+        console.log(this.state.links);
+        this.state.links.slice(0,5).forEach((row) => {row.creationDate = row.creationDate.substr(0,10);});
+        const dataSource = this.state.links.slice(0,5);
+        const columns = [{
+            title: 'Retailer',
+            dataIndex: 'merchantName',
+            key: 'merch',
+            width: '24%'
+        },{
+            title: 'Earning',
+            dataIndex: 'earnings',
+            key: 'earnings',
+            width: '22%'
+        },{
+            title: 'Click',
+            dataIndex: 'redirects',
+            key: 'clicks',
+            width: '20%'
+        },{
+            title: 'Date',
+            dataIndex: 'creationDate',
+            key: 'date',
+            width: '22%'
+        }];
+        return (
+            &lt;Layout className='dash-layout' style={{ padding: '0', background: '#ECECEC' }}>
+                &lt;Content className='dash-content' >
+                    {
+                        this.state.isLoading? (&lt;LoadingIndicator />) :
+                            (&lt;div className="content-container" style={{ background: '#ECECEC', padding: '0' }}>
+                                &lt;Row gutter={16} style={{ marginBottom: 8 }}>
+                                    &lt;Col span={24}>
+                                        &lt;Card hoverable={true}
+                                              className="earning-card"
+                                              title={&lt;span style={{fontSize: '2em'}}>Total earnings&lt;/span>}>
+                                            &lt;span style={{fontSize: 'large'}}>${totalEarning}.00&lt;/span>
+                                        &lt;/Card>
+                                    &lt;/Col>
+                                &lt;/Row>
+                                &lt;Row gutter={16} style={{ marginBottom: 8 }}>
+                                    &lt;Col span={24}>
+                                        &lt;Card hoverable={true}
+                                              className="clicks-card"
+                                              title={&lt;span style={{fontSize: '2em'}}>Total clicks&lt;/span>}>
+                                            &lt;span style={{fontSize: 'large'}}>{totalClicks} clicks&lt;/span>
+                                        &lt;/Card>
+                                    &lt;/Col>
+                                &lt;/Row>
+                                &lt;Row gutter={16}>
+                                    &lt;Col span={24}>
+                                        &lt;Card className="dash-table" title="Your recent links">
+                                            &lt;Table pagination={false}
+                                                   expandRowByClick={true}
+                                                   expandedRowRender={record =>
+                                                       &lt;Popover content={
+                                                           &lt;CopyToClipboard
+                                                               onCopy={this.onCopy}
+                                                               text={record.link}>
+                                                               &lt;Button type={'primary'}>Copy to Clipboard&lt;/Button>
+                                                           &lt;/CopyToClipboard>}
+                                                                title={"Press the button to copy your SYL link"}
+                                                                trigger={'click'}>
+                                                           &lt;a>{record.link}&lt;/a>
+                                                       &lt;/Popover>}
+                                                   rowKey={record => record.hash}
+                                                   dataSource={dataSource}
+                                                   columns={columns}
+                                                   size="small"/>
+                                        &lt;/Card>
+                                    &lt;/Col>
+                                &lt;/Row>
+                            &lt;/div>)
+                    }
+
+                &lt;/Content>
+            &lt;/Layout>
+        )
+    }
+
+}
+
+export default withRouter(Dashboard)</code></pre>
+        </article>
+    </section>
+
+
+
+
+</div>
+
+<nav>
+    <h2><a href="index.html">Home</a></h2><h3>Classes</h3><ul><li><a href="App.html">App</a></li><li><a href="AppHeader.html">AppHeader</a></li><li><a href="AppSider.html">AppSider</a></li><li><a href="CreateLinks.html">CreateLinks</a></li><li><a href="Dashboard.html">Dashboard</a></li><li><a href="Home.html">Home</a></li><li><a href="LinkForm.html">LinkForm</a></li><li><a href="LinksTable.html">LinksTable</a></li><li><a href="Login.html">Login</a></li><li><a href="LoginForm.html">LoginForm</a></li><li><a href="Mylinks.html">Mylinks</a></li><li><a href="Stats.html">Stats</a></li></ul><h3>Global</h3><ul><li><a href="global.html#ProfileDropdownMenu">ProfileDropdownMenu</a></li><li><a href="global.html#request">request</a></li></ul>
+</nav>
+
+<br class="clear">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 3.5.5</a> on Mon Jun 04 2018 18:49:42 GMT-0700 (PDT)
+</footer>
+
+<script> prettyPrint(); </script>
+<script src="scripts/linenumber.js"> </script>
+</body>
+</html>
